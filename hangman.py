@@ -52,7 +52,7 @@ def on_network_message(timestamp, user, message):
     if user == 'system': 
         get_opponent_and_decide_game_runner(user, message)
     # shared state (only of interest to the none-server)
-    if type(message) is dict and not game_state['is_server']:
+    if type(message) is dict:
         game_state['shared'] = message
         
         
@@ -69,7 +69,9 @@ def game_loop():
         who_is_playing = game_state['shared']['who_is_playing']    
         while who_is_playing != game_state['me']:
             who_is_playing = game_state['shared']['who_is_playing']
-            tk_sleep(window, 1 / 10)        
+            tk_sleep(window, 1 / 10)     
+        if game_state['shared']['game_over_message'] != '':
+            break       
         guess_count = game_state['shared']['guesses_left']
         empty_word = game_state['shared']['parts_of_word'] 
         guess_limit = game_state['shared']['guesses_limit']
@@ -150,6 +152,7 @@ def game_loop():
     message = Label(game_area, style = 'Message.TLabel')
     message.config(text = game_state['shared']['game_over_message'])
     message.place(y = 400, x = 100, width = game_area_width - 200)
+    message = Label(game_area, style = 'Message.TLabel')
     message.config(text = ' '.join(empty_word))
     message.place(y = 800, x = 100, width = game_area_width - 200)       
 
