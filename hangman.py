@@ -1,13 +1,10 @@
-from operator import length_hint
-from random import randint
 import tkinter as tk
 from tkinter import simpledialog, PhotoImage, Frame
 from tkinter.ttk import Label
 from network import connect, send
 from tk_sleep import tk_sleep
-from window_handler import create_window, start_window_loop
+from window_handler import create_window
 from style import set_style
-from typing import Counter 
 
 game_area_width = 1200
 game_area_height = 1000
@@ -19,11 +16,6 @@ game_area  = Frame(window, bg='black', bd = 0,\
  height = game_area_height, width = game_area_width)
 game_area.place(x=50, y=50)
 
-#ball_image = PhotoImage(file = 'images/ball.png')
-#paddle_image = PhotoImage(file = 'images/paddle.png')
-#ball = Label(game_area, image = ball_image)
-#paddle_1 = Label(game_area, image = paddle_image)
-#paddle_2 = Label(game_area, image = paddle_image)
 message = Label(game_area, style = 'Message.TLabel')
 info_1 = Label(window)
 info_2 = Label(window)
@@ -33,11 +25,13 @@ game_state = {
     'opponent': None,
     'is_server': None,
     'shared': {
-        'player_1': '',
-        'player_2': '',
-        'guess_left': 0,
+        'who_is_playing': '',
+        'word_to_guess': '',
+        'letters_guessed': '',
+        'parts_of_word': [],
+        'guesses_left': 0,
+        'guesses_limit': 0,
         'game_over_message': ''
-    
     }
 }
 
@@ -46,6 +40,7 @@ def get_opponent_and_decide_game_runner(user, message):
     if 'created the channel' in message:
         name = message.split("'")[1]
         game_state['is_server'] = name == game_state['me']
+            
     # who is the opponent (= the one that joined that is not me)
     if 'joined channel' in message:
         name = message.split(' ')[1]
@@ -56,76 +51,51 @@ def get_opponent_and_decide_game_runner(user, message):
 def on_network_message(timestamp, user, message):
     if user == 'system': 
         get_opponent_and_decide_game_runner(user, message)
-    # key_downs (only of interest to the server)
-    global keys_down_me, keys_down_opponent
-    if game_state['is_server']:
-        if user == game_state['me'] and type(message) is list:
-            keys_down_me = set(message)
-        if user == game_state['opponent'] and type(message) is list:
-            keys_down_opponent = set(message)
     # shared state (only of interest to the none-server)
     if type(message) is dict and not game_state['is_server']:
         game_state['shared'] = message
-        redraw_screen()
         
         
-def redraw_screen():
-    player_1, player_2, lives_1, lives_2,\
-    score_1, score_2, game_over_message =\
-        game_state['shared'].values()
-''' info_1.config(text = (
-       f'\nPlayer: {player_1}\n' +
-       f'Score: {score_1}\n' +
-       f'Lives: {lives_1}'
-    ))
-    info_2.config(text = (
-       f'\nPlayer: {player_2[0:10]}\n' +
-       f'Score: {score_2}\n' +
-       f'Lives: {lives_2}'
-    ))
-    info_1.place(x = 50, y = game_area_height + 50)
-    info_2.place(x = game_area_width - 100, y = game_area_height + 50)
-    if game_over_message != '':
-        message = Label(game_area, style = 'Message.TLabel')
-        message.config(text = game_over_message)
-        message.place(y = 200, x = 100, width = game_area_width - 200)     ''' 
-
 def game_loop():
-    # unpack game_state['shared'] to variables
-    shared = game_state['shared']
-    # who is player 1 (= me) and 2 (= opponent)
-    shared['player_1'] = game_state['me']
-    shared['player_2'] = game_state['opponent']
-    guess = ''
-    completed_word = 0
-    empty_word = ''
+    global letters_used, completed_word, used_letters, out_of_guesses,secretword, who_is_playing, completed_word
+    guess_limit = game_state['shared']['guesses_limit']
+    secretword = game_state['shared']['word_to_guess']   
+    completed_word = ''
     used_letters = ''
-    guess_count = 0 
-    guess_limit = 5
+    guess = ''
     out_of_guesses = False
-    words = ['football']
-    length = len(words)
-    for letter in words[0]:
-        letter = "_ "
-        empty_word += letter
 
-    empty_word = empty_word.split()
-
-    secretword = words[0]
-    letters_used = ''
     while True:
+        who_is_playing = game_state['shared']['who_is_playing']    
+        while who_is_playing != game_state['me']:
+            who_is_playing = game_state['shared']['who_is_playing']
+            tk_sleep(window, 1 / 10)        
+        guess_count = game_state['shared']['guesses_left']
+        empty_word = game_state['shared']['parts_of_word'] 
+        guess_limit = game_state['shared']['guesses_limit']
+        secretword = game_state['shared']['word_to_guess']   
+        letters_used = game_state['shared']['letters_guessed']  
+        if((guess_count < 6) and (guess_count > 0)):
+            imagename = 'hangman-bilder/' + str(guess_count) +'.png'
+            hangman_image = PhotoImage(file = imagename)
+            hangman = Label(game_area, image = hangman_image)
+            hangman.place(x=100, y=20)
+        if letters_used != '': 
+            message = Label(game_area, style = 'Message.TLabel')
+            message.config(text = 'Letters used: ' + letters_used)
+            message.place(y = 700, x = 100, width = game_area_width - 200)  
+                   
         message = Label(game_area, style = 'Message.TLabel')
         message.config(text = ' '.join(empty_word))
         message.place(y = 800, x = 100, width = game_area_width - 200)
         
         if guess_count < guess_limit:
             guess = simpledialog.askstring('Guess', 'Enter guess', parent=window)
-            if len(guess) > len(words[0]):
+            if len(guess) > len(secretword):
                 message = Label(game_area, style = 'Message.TLabel')
                 message.config(text = 'The guess word is longer than the secret word!')
                 message.place(y = 400, x = 100, width = game_area_width - 200)
-                continue
-        
+                continue       
         else:
             out_of_guesses = True
         missing_letters = secretword    
@@ -136,7 +106,6 @@ def game_loop():
             if guess_letter in secretword:
                 used_letters += guess_letter
                 for letter in secretword:
-                    
                     if letter == guess_letter:
                         missing_letters = missing_letters.replace(letter, '')
                         empty_word[counter] = guess_letter
@@ -145,8 +114,7 @@ def game_loop():
                             completed_word += 1
                     counter += 1
                     if counter > len(secretword):
-                        break
-                        
+                        break               
             else:
                 if guess_letter not in letters_used:
                     letters_used = letters_used + guess_letter
@@ -161,65 +129,67 @@ def game_loop():
         message.config(text = 'Letters used: ' + letters_used)
         message.place(y = 700, x = 100, width = game_area_width - 200)            
         if '_' not in empty_word:
-            break
-        if completed_word == len(secretword):
-            break
-        if out_of_guesses:
-            break    
-        
-        tk_sleep(window, 1 / 24)
-
-        # send state
-        send(game_state['shared'])
-        # redraw screen
-        redraw_screen()
-        # the game is over if there is a game over message
-        if shared['game_over_message'] != '':
-            break    
-    if out_of_guesses:
-        message = Label(game_area, style = 'Message.TLabel')
-        message.config(text = 'Out of guesses, YOU LOSE!')
-        message.place(y = 400, x = 100, width = game_area_width - 200)
+            game_state['shared']['game_over_message'] = 'YOU WIN! the word was: ' + secretword
+        elif completed_word == len(secretword):
+            game_state['shared']['game_over_message'] = 'YOU WIN! the word was: ' + secretword
+        elif out_of_guesses:
+            game_state['shared']['game_over_message'] = 'Out of guesses, YOU LOSE!'   
         message = Label(game_area, style = 'Message.TLabel')
         message.config(text = ' '.join(empty_word))
         message.place(y = 800, x = 100, width = game_area_width - 200)
-    else:
-        message = Label(game_area, style = 'Message.TLabel')
-        message.config(text = 'YOU WIN! the word was: ' + secretword)
-        message.place(y = 400, x = 100, width = game_area_width - 200) 
-        message = Label(game_area, style = 'Message.TLabel')
-        message.config(text = ' '.join(empty_word))
-        message.place(y = 800, x = 100, width = game_area_width - 200)       
+        game_state['shared']['guesses_left'] = guess_count
+        game_state['shared']['parts_of_word'] = empty_word
+        game_state['shared']['letters_guessed'] = letters_used
+        game_state['shared']['who_is_playing'] = game_state['opponent']
+        # send state
+        send(game_state['shared'])
+        # redraw screen
+        # the game is over if there is a game over message
+        if game_state['shared']['game_over_message'] != '':
+            break    
+    message = Label(game_area, style = 'Message.TLabel')
+    message.config(text = game_state['shared']['game_over_message'])
+    message.place(y = 400, x = 100, width = game_area_width - 200)
+    message.config(text = ' '.join(empty_word))
+    message.place(y = 800, x = 100, width = game_area_width - 200)       
 
 # start - before game loop
 def start():
-    # hide some things initially
-    ### j('.wait, .ball, .paddle-1, .paddle-2').hide()
-    # show the content/body (hidden by css)
-    ### j('body').show()
-    # connect to network
+    global empty_word, secretword, guess_limit, guess_count
+    empty_word = ''
+    secretword = 'football'
     game_state['me'] = simpledialog.askstring(
         'Input', 'Your user name', parent=window)
-    # note: adding prefix so I don't disturb
-    # other class mates / developers using the same
-    # network library
-    channel = 'sarmand_hangman_' + simpledialog.askstring(
+
+    channel = 'sarmand_' + simpledialog.askstring(
         'Input', 'Channel', parent=window)
     connect(channel=channel, user=game_state['me'], handler=on_network_message)
     message.config(text = 'Waiting for an opponent...')
     message.place(y = 200, x = 100, width = game_area_width - 200)
     # wait for an opponent 
     while game_state['opponent'] == None:
-        print('waiting')
-        #tk_sleep(window, 1 / 10)
+        tk_sleep(window, 1 / 10)
     message.destroy()
-    # start game loop if i am the server
-    if not game_state['is_server']:
-        game_loop()
+    if game_state['is_server']:
+        for letter in secretword:
+            letter = "_ "
+            empty_word += letter
+        empty_word = empty_word.split()
+        guess_limit = 5
+        guess_count = 0  
+        if game_state['shared']['who_is_playing'] == '':
+            game_state['shared']['who_is_playing'] = game_state['me']
+            game_state['shared']['word_to_guess'] = secretword
+            game_state['shared']['guesses_left'] = guess_count
+            game_state['shared']['parts_of_word'] = empty_word
+            game_state['shared']['guesses_limit'] = guess_limit
+            send(game_state['shared'])
+    game_loop()
 
 # start
 start()
-start_window_loop(window)
+window.mainloop()
+#start_window_loop(window)
 
     
     

@@ -75,21 +75,19 @@ def loop(channel, user, handler):
   message_handler = handler
   channel_name = urllib.parse.quote(channel)
   user_name = urllib.parse.quote(user)
-  headers = {}
-  headers['Accept'] = 'text/event-stream'
-  testUTL = f'{serverURL}/api/listen/{channel_name}/' + f'{user_name}/{last_message_time}'
-  messages  = SSEClient(testUTL)
-  for event in messages:
+  client = SSEClient(f'{serverURL}/api/listen/{channel_name}/' +
+		f'{user_name}/{last_message_time}')
+  for msg in client:
       if close_it:
-        messages.resp.close()
+        client.resp.close()
         close_it = False
         break
-      elif event.event == 'token' : 
-        on_token(event)
-      elif event.event == 'message':
-        on_message(event)
-      elif event.event == 'error':
-        on_error(event)
+      elif msg.event == 'token' : 
+        on_token(msg)
+      elif msg.event == 'message':
+        on_message(msg)
+      elif msg.event == 'error':
+        on_error(msg)
 
 def connect(channel, user, handler):
     Thread(target = loop, args = (channel, user, handler)).start()
